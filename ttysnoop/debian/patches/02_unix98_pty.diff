@@ -1,0 +1,165 @@
+Description: Implement support for UNIX98 pty's.
+Author: Peter Samuelson <peter@p12n.org>
+X-Closes: #87371
+X-Original: http://bugs.debian.org/cgi-bin/bugreport.cgi?msg=10;filename=ttysnoop_unix98.diff;att=1;bug=87371
+Forwarded: unknown
+Last-Update: 2011-11-11
+
+--- ttysnoop-0.12d.debian/ttysnoops.c
++++ ttysnoop-0.12d/ttysnoops.c
+@@ -18,6 +18,7 @@
+ 	v0.12d  8-4-98 Carl Declerck	- updated #includes a bit
+ */
+ 
++#define _XOPEN_SOURCE 600 /* ptsname(), posix_openpt() */
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <sys/ioctl.h>
+@@ -54,6 +55,7 @@ int snoopfd = -1, authfd = -1;
+ int pgmpid = -1, authpid = -1, servpid = -1;
+ int use_socket = 0, fdmax = 0, proctype = DEAD_PROCESS;
+ char snoopdev[32], ptynam[32], childproc[128], sockname[128];
++char *short_ptynam, *shorter_ptynam;
+ 
+ 
+ /* read a single line from a stream, ignoring all irrelevant stuff */
+@@ -148,7 +150,17 @@ int process_snooptab (void)
+ }
+ 
+ /* find & open a pty to be used by the pty-master */
++int open_unix98_master (char *ptyname)
++{
++	int fd = posix_openpt(O_RDWR);
++	char *name = "unknown";
+ 
++	if (fd >= 0)
++		name = ptsname(fd);
++	if (name)
++		strcpy(ptyname, name);
++	return fd;
++}
+ int find_ptyxx (char *ptyname)
+ {
+ 	int fd, i, j;
+@@ -180,6 +192,25 @@ int find_ptyxx (char *ptyname)
+ 
+ /* find & open a pty (tty) to be used by pty-client */
+ 
++int open_unix98_slave (int ptyfd)
++{
++	int fd;
++	char *name = ptsname(ptyfd);
++
++	grantpt(ptyfd);
++	unlockpt(ptyfd);
++
++	if ((fd = open(name, O_RDWR)) >= 0)
++	{
++#ifdef TIOCSCTTY /* GNU/kFreeBSD */
++		(void) ioctl(fd, TIOCSCTTY, 0);
++#endif
++		return fd;
++	}
++
++	close(ptyfd);
++	return -1;
++}
+ int find_ttyxx (char *ttyname, int ptyfd)
+ {
+ 	struct group *grp;
+@@ -200,23 +231,36 @@ int find_ttyxx (char *ttyname, int ptyfd
+ 	return (-1);
+ }
+ 
++void abbreviate_ptyname (char *name, char **shortname, char **shortername)
++{
++	*shortname = *shortername = name;
++	if (!name)
++		return;
++	if (strncmp(name, "/dev/", 5))
++		return;
++	*shortname = *shortername = name + 5;
++	if (!strncmp(name, "/dev/tty", 8))
++		*shortername = name + 8;
++	else if (!strncmp(name, "/dev/pts/", 9))
++		*shortername = name + 9;
++}
++
+ /* fork off the pty-client and redirect its stdin/out/err to the pty */
+ 
+ int fork_pty (int *ptyfd, char *ttynam)
+ {
+ 	struct termios term;
+ 	struct winsize twin;
+-	int ttyfd, pid;
+-	char name[32];
++	int ttyfd, pid, is_unix98 = 0;
+ 	
+ 	tcgetattr (STDIN_FILENO, &term);
+ 	ioctl (STDIN_FILENO, TIOCGWINSZ, (char *) &twin);
+ 
+-	if ((*ptyfd = find_ptyxx(name)) < 0)
++	if ((*ptyfd = open_unix98_master(ttynam)) >= 0)
++		is_unix98 = 1;
++	else if ((*ptyfd = find_ptyxx(ttynam)) < 0)
+ 		errorf ("can't open pty\n");
+ 	
+-	strcpy (ttynam, leafname(name));
+-	
+ 	if ((pid = fork()) < 0)
+ 		errorf ("can't fork\n");
+ 	
+@@ -224,8 +268,12 @@ int fork_pty (int *ptyfd, char *ttynam)
+ 	{
+ 		if (setsid() < 0)
+ 			errorf ("setsid failed\n");
+-		
+-		if ((ttyfd = find_ttyxx(name, *ptyfd)) < 0)
++
++		if (is_unix98)
++			ttyfd = open_unix98_slave(*ptyfd);
++		else
++			ttyfd = find_ttyxx(ttynam, *ptyfd);
++		if (ttyfd < 0)
+ 			errorf ("can't open tty\n");
+ 			
+ 		close (*ptyfd);
+@@ -384,7 +432,7 @@ void cleanup_utmp (char ptynam[])
+ void closedown (void)
+ {
+ 	if (servpid == getpid())	/* only server must clear utmp entry */
+-		cleanup_utmp (ptynam);
++		cleanup_utmp (short_ptynam);
+ 	stty_orig ();
+ }
+ 
+@@ -455,14 +503,17 @@ int main (int argc, char *argv[])
+ 	
+ 	/* fork off the client and load the new image */
+ 	
+-	if ((pgmpid = fork_pty(&ptyfd, ptynam)) == 0)    /* child */
++	if ((pgmpid = fork_pty(&ptyfd, ptynam)) < 0)
++		errorf ("cannot fork\n");
++	abbreviate_ptyname(ptynam, &short_ptynam, &shorter_ptynam);
++	if (pgmpid == 0)    /* child */
+ 	{
+ 		/* should we update utmp to reflect the change to ttypX ? */
+ 
+ 		if (proctype == LOGIN_PROCESS)
+ 		{
+-			strncopy (utmp.ut_line, ptynam);
+-			strncopy (utmp.ut_id, ptynam + 3);
++			strncopy (utmp.ut_line, short_ptynam);
++			strncopy (utmp.ut_id, shorter_ptynam);
+ 			*utmp.ut_host = 0;
+ 			utmp.ut_addr = 0;
+ 			strncopy (utmp.ut_user, "LOGIN");
+@@ -497,7 +548,7 @@ int main (int argc, char *argv[])
+ 		if ((servfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+ 			errorf ("can't create server socket\n");
+ 		
+-		sprintf (sockname, "%s/%s", SPOOLDIR, ptynam);
++		sprintf (sockname, "%s/%s", SPOOLDIR, shorter_ptynam);
+ 		unlink (sockname);
+ 		serv_addr.sun_family = AF_UNIX;
+ 		strncopy (serv_addr.sun_path, sockname);

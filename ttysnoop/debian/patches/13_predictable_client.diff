@@ -1,0 +1,130 @@
+Description: Predictable behaviour of client program.
+ Better error recovery and exeption handling.
+ .
+ Ignore the SIGPIPE trigger.
+ .
+ Give priority to reading the device being snooped at,
+ only then reading from standard input.
+Author: Mats Erik Andersson <debian@gisladisker.se>
+Forwarded: no
+Last-Update: 2010-06-21
+--- ttysnoop-0.12d.debian/ttysnoop.c
++++ ttysnoop-0.12d/ttysnoop.c
+@@ -25,6 +25,7 @@
+ #include <grp.h>
+ #include <utmp.h>
+ #include <errno.h>
++#include <signal.h>
+ 
+ #include "config.h"
+ #include "common.h"
+@@ -33,6 +34,11 @@
+ 
+ char buff[BUFF_SIZE];
+ 
++void message (void)
++{
++	printf ("\r\nBack at local tty.\r\n");
++}
++
+ int main (int argc, char *argv[])
+ {
+ 	fd_set readset;
+@@ -40,24 +46,30 @@ int main (int argc, char *argv[])
+ 	int sockfd, fdmax, quit = 0, n;
+ 	char sockname[128];
+ 	
++	if (geteuid())
++		errorf("Insufficient privileges.\n");
++
+ 	if (argc < 2)
+ 		errorf ("Usage: ttysnoop <pty>\n");
+ 	
+ 	/* create the client socket */
+ 	
+ 	if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+-		errorf ("can't create client socket\n");
++		errorf ("Cannot create client socket.\n");
+ 	
+-	sprintf (sockname, "%s/%s", SPOOLDIR, argv[1]);
++	snprintf (sockname, sizeof(sockname), "%s/%s", SPOOLDIR, argv[1]);
++	memset (&sock_addr, '\0', sizeof(sock_addr));
+ 	sock_addr.sun_family = AF_UNIX;
+ 	strncopy (sock_addr.sun_path, sockname);
++
+ 	if (connect(sockfd, (struct sockaddr *) &sock_addr, sizeof(sock_addr)) < 0)
+-		errorf ("can't connect to server\n");
++		errorf ("Cannot connect to server. Is it really a valid socket?\n");
+ 	
+ 	/* put stdin into raw mode */
+ 	
+ 	stty_initstore ();
+ 	atexit (stty_orig);
++	atexit (message);
+ 	if (isatty(STDIN_FILENO))
+ 		stty_raw (STDIN_FILENO);
+ 
+@@ -67,32 +79,52 @@ int main (int argc, char *argv[])
+ 	
+ 	/* do our thing */
+ 	
++	signal(SIGPIPE, SIG_IGN);
++	FD_ZERO (&readset);
++
+ 	while (!quit)
+ 	{
+-		FD_ZERO (&readset);
++		int ret;
++
+ 		FD_SET (STDIN_FILENO, &readset);
+ 		FD_SET (sockfd, &readset);
+ 		
+-		select (fdmax + 1, &readset, NULL, NULL, NULL);
+-		
+-		if (FD_ISSET(STDIN_FILENO, &readset))
+-		{
+-			n = read(STDIN_FILENO, buff, BUFF_SIZE);
++		if ( (ret = select (fdmax + 1, &readset, NULL, NULL, NULL)) < 0 ) {
++			if ( errno == EINTR )
++				continue;
+ 
+-			if (write(sockfd, buff, n) < 0)
+-				quit = 1;
++			break;	/* Cannot recover. */
+ 		}
+ 		
++		/* Give precedence to the end point where we snoop. */
+ 		if (FD_ISSET(sockfd, &readset))
+ 		{
+-			if ((n = read(sockfd, buff, BUFF_SIZE)) < 1)
+-				quit = 1;
++			if ((n = read(sockfd, buff, BUFF_SIZE)) <= 0) {
++				if ( (n < 0) && (errno == EINTR) )
++					continue;
++				if ( n == 0 )
++					break;	/* EOF on socket. */
+ 
++				quit = 1;	/* Will soon exit! */
++			}
+ 			if (n > 0)
+ 				write (STDOUT_FILENO, buff, n);
+ 		}
++		
++		if (FD_ISSET(STDIN_FILENO, &readset))
++		{
++			n = read(STDIN_FILENO, buff, BUFF_SIZE);
++			if ( n == 0 ) {
++				/* The observer has left. Close down! */
++				shutdown(sockfd, SHUT_WR);
++				FD_CLR(STDIN_FILENO, &readset);
++				quit = 1;
++			}
++
++			if ( ( n > 0 ) && ( write(sockfd, buff, n) < 0 ) )
++				quit = 1;	/* The terminal service has already closed down. */
++		}
+ 	}
+ 	
+-	printf ("\r\nBack at local tty.\r\n");
+ 	return 0;
+ }

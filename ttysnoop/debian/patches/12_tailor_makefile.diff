@@ -1,0 +1,76 @@
+Description: Minor changes to improve on previous adaptions.
+ Correct a mistaken target dependency.
+ .
+ Let additional compiler flags influence the build process.
+ .
+ Minor errors in the manual page.
+ .
+ A compiler attribute.
+Author: Mats Erik Andersson <debian@gisladisker.se>
+Forwarded: not-needed
+Last-Update: 2010-06-21
+--- ttysnoop-0.12d/Makefile.debian
++++ ttysnoop-0.12d/Makefile
+@@ -11,7 +11,7 @@
+ 
+ # For shadow support
+ 
+-CCOPTS	= -O2 -DSHADOW_PWD
++CCOPTS	= -O2 -DSHADOW_PWD $(CFLAGS)
+ LIBS	= -lcrypt
+ 
+ SERVEROBJS	= ttysnoops.o common.o logwtmp.o
+@@ -37,7 +37,7 @@
+ common.o:	common.c common.h
+ 		$(CC) $(CCOPTS) -c -o common.o common.c
+ 
+-logwtmp.o:	common.c common.h
++logwtmp.o:	logwtmp.c common.h
+ 		$(CC) $(CCOPTS) -c -o logwtmp.o logwtmp.c
+ 
+ clean:
+--- ttysnoop-0.12d.debian/ttysnoop.8
++++ ttysnoop-0.12d/ttysnoop.8
+@@ -8,7 +8,7 @@
+ .Nm ttysnoop
+ .Op Ar pty
+ .Nm ttysnoops
+-.Op Ar loginname
++.
+ .Sh DESCRIPTION
+ The
+ .Nm ttysnoop
+@@ -24,9 +24,11 @@ to find out which tty's should be cloned
+ fixed) device, or through a dynamically allocated pseudo-tty (pty). This is 
+ also specified in the 
+ .Nm /etc/snooptab
+-file. To connect to the pty, the
++file. To connect to the pty, the client
+ .Nm ttysnoop
+-client should be used.
++should be used. The available pseudo terminals \fIpty\fR are present as
++sockets in the directory \fI/var/spool/ttysnoop/\fR.
++.
+ .Ss Format of /etc/snooptab
+ The
+ .Nm /etc/snooptab
+@@ -51,7 +53,7 @@ latter is used to tell
+ that the snoop-device will be a dynamically allocated pty.
+ .Pa type
+ specifies the type of program that should be run, currently recognized
+-types are "init", "user" and "login" altough the former two aren't really
++types are "init", "user" and "login" although the former two aren't really
+ needed. Finally,
+ .Pa program
+ is the full pathname to the program to run when 
+--- ttysnoop-0.12d.debian/common.h
++++ ttysnoop-0.12d/common.h
+@@ -5,7 +5,7 @@
+ #define max(x,y)	((x) > (y) ? (x) : (y))
+ #define strncopy(x,y)	strncpy (x, y, sizeof(x))
+ 
+-void errorf (char *fmt, ...);
++void errorf (char *fmt, ...) __attribute__ ((noreturn));
+ int fdprintf (int fd, char *fmt, ...);
+ char *leafname (char *path);
+ void stty_initstore (void);

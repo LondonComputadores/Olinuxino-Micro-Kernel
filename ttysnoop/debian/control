@@ -1,0 +1,16 @@
+Source: ttysnoop
+Section: admin
+Priority: optional
+Maintainer: Mats Erik Andersson <mats.andersson@gisladisker.se>
+Standards-Version: 3.9.2
+Build-Depends: debhelper (>= 8)
+Vcs-Svn: svn://svn.debian.org/svn/collab-maint/deb-maint/ttysnoop/trunk/
+Vcs-Browser: http://svn.debian.org/viewsvn/collab-maint/deb-maint/ttysnoop/trunk/
+
+Package: ttysnoop
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: allows you to spy on telnet+serial connections
+ TTYSnoop allows you to snoop on login tty's through another tty-device
+ or pseudo-tty. The snoop-tty becomes a 'clone' of the original tty,
+ redirecting both input and output from/to it.

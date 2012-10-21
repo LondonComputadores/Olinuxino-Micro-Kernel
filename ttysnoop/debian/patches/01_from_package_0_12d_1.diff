@@ -1,0 +1,184 @@
+Description: Debian specific patches to ttysnoop-0.12d.
+ Recovered from ttysnoop_0.12d-1.diff.gz.
+Author: Alberto Gonzalez Iniesta <agi@inittab.org>
+ Javier Fernandez-Sanguino Pen~a <jfs@computer.org>
+ Paul Haggart <phaggart@debian.org>
+Forwarded: unknown
+Last-Update: 2005-03-25
+--- ttysnoop-0.12d.orig/snooptab.dist
++++ ttysnoop-0.12d/snooptab.dist
+@@ -1,19 +1,29 @@
+-#
+ # /etc/snooptab
+ #
++# these display directly on the specified tty.. no client necessary
++#
+ # tty		snoopdev	type	execpgm
+ #
+-ttyS1		/dev/tty7	login	/bin/login
+-ttyS2		/dev/tty8	login	/bin/login
++#ttyS1		/dev/tty7	login	/bin/login
++#ttyS2		/dev/tty8	login	/bin/login
+ #
+-# remember to inform your gettys on the above lines 
+-# that /etc/ttysnoops is the login program now
+ #
+-# the 'socket' snoop-device is for use with the
+-# ttysnoop client
+-# (any tty not listed above will match the wildcard)
++# the 'socket' snoop-device is for use with the ttysnoop client (any tty not
++# listed above will match the wildcard)
+ #
+ *		socket		login	/bin/login
+ #
+-# remember to inform your telnetd that /etc/ttysnoops
+-# is the login program now
++# remember to inform your incoming daemons that /usr/sbin/ttysnoops is 
++# the login program
++#
++# example:  (for /etc/inetd.conf)
++# telnet stream tcp nowait root /usr/sbin/tcpd /usr/sbin/in.telnetd -L /usr/sbin/ttysnoops
++#
++# example /etc/inittab (using agetty):
++# s2:23:respawn:/sbin/getty 38400 ttyS2 vt100 -l /usr/sbin/ttysnoops
++#
++# or, if you're using mgetty:   (/etc/mgetty/login.config) replace:
++# *	  -       -       /bin/login	@
++# with:
++# *       -       -       /usr/sbin/ttysnoops @
++
+--- ttysnoop-0.12d.orig/ttysnoops.c
++++ ttysnoop-0.12d/ttysnoops.c
+@@ -43,9 +43,10 @@
+ #endif
+ #include "config.h"
+ #include "common.h"
+-
++#include "logwtmp.h"
+ 
+ #define BUFF_SIZE	256
++#define PASS_SIZE	256
+ 
+ char buff[BUFF_SIZE];
+ 
+@@ -317,7 +318,7 @@
+ #endif
+ 
+ 	int ret = 0;
+-	char buff[16], *pwbuff;
++	char buff[PASS_SIZE], *pwbuff;
+ 
+ 	if ((authpid = fork()) == 0)	/* authentication child */
+ 	{
+@@ -374,6 +375,8 @@
+ 	*utmp.ut_user = 0;
+ 	pututline (&utmp);
+ 	endutent ();
++    /* fix wtmp.  the above only fixes utmp.  Fixed by wakko@ani.ml.org */
++    logwtmp(ptynam, "", "");
+ }
+ 
+ /* do a graceful closedown */
+--- ttysnoop-0.12d.orig/logwtmp.c
++++ ttysnoop-0.12d/logwtmp.c
+@@ -0,0 +1,63 @@
++/*
++ * Copyright (c) 1988 The Regents of the University of California.
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ * 3. All advertising materials mentioning features or use of this software
++ *    must display the following acknowledgement:
++ *     This product includes software developed by the University of
++ *     California, Berkeley and its contributors.
++ * 4. Neither the name of the University nor the names of its contributors
++ *    may be used to endorse or promote products derived from this software
++ *    without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ */
++
++#include <string.h>
++#include <unistd.h>
++#include <utmp.h>
++#include <fcntl.h>
++#include <sys/stat.h>
++
++#include "logwtmp.h"
++
++void
++logwtmp(const char *line, const char *name, const char *host)
++{
++       struct utmp ut;
++       struct stat buf;
++       int fd;
++
++       if ((fd = open(_PATH_WTMP, O_WRONLY|O_APPEND, 0)) < 0)
++               return;
++       if (fstat(fd, &buf) == 0) {
++               ut.ut_pid = getpid();
++               ut.ut_type = (name[0] != '\0')? USER_PROCESS : DEAD_PROCESS;
++               strncpy(ut.ut_id, "", 2);
++               strncpy(ut.ut_line, line, sizeof(ut.ut_line));
++               strncpy(ut.ut_name, name, sizeof(ut.ut_name));
++               strncpy(ut.ut_host, host, sizeof(ut.ut_host));
++               time(&ut.ut_time);
++               if (write(fd, &ut, sizeof(struct utmp)) != sizeof(struct utmp))
++                       ftruncate(fd, buf.st_size);
++       }
++       close(fd);
++}
+--- ttysnoop-0.12d.orig/logwtmp.h
++++ ttysnoop-0.12d/logwtmp.h
+@@ -0,0 +1 @@
++void logwtmp(const char *_line, const char *name, const char *host);
+--- ttysnoop-0.12d.orig/Makefile
++++ ttysnoop-0.12d/Makefile
+@@ -6,15 +6,15 @@
+ 
+ # Without shadow support
+ 
+-CCOPTS	= -O2
+-LIBS	= -lcrypt # remove -lcrypt if your system doesn't have it
++#CCOPTS	= -O2
++#LIBS	= -lcrypt # remove -lcrypt if your system doesn't have it
+ 
+ # For shadow support
+ 
+-#CCOPTS	= -O2 -DSHADOW_PWD
+-#LIBS	= -lshadow
++CCOPTS	= -O2 -DSHADOW_PWD
++LIBS	= -lcrypt
+ 
+-SERVEROBJS	= ttysnoops.o common.o
++SERVEROBJS	= ttysnoops.o common.o logwtmp.o
+ CLIENTOBJS	= ttysnoop.o common.o
+ SERVERSRCS	= ttysnoops.c
+ CLIENTSRCS	= ttysnoop.c
+@@ -37,6 +37,9 @@
+ common.o:	common.c common.h
+ 		$(CC) $(CCOPTS) -c -o common.o common.c
+ 
++logwtmp.o:	common.c common.h
++		$(CC) $(CCOPTS) -c -o logwtmp.o logwtmp.c
++
+ clean:
+ 		rm -f *.o core ttysnoop ttysnoops
+ 

@@ -1,0 +1,144 @@
+Description: Cleaning of compiler warnings and minor observations.
+ A handful missing prototypes need suitable header files.
+ .
+ Neglected va_end().
+ .
+ Missing return values.
+ .
+ Differing time representation length for 64 bits systems is overcome
+ by a direct assignment, instead of passing a pointer in time().
+ .
+ Separation of assignment and test when executing a switch in suspend state.
+ This improves code readability.
+Author: Mats Erik Andersson <debian@gisladisker.se>
+Forwarded: no
+Last-Update: 2011-11-25
+--- ttysnoop-0.12d/common.c.debian	1994-09-07 14:32:37.000000000 +0200
++++ ttysnoop-0.12d/common.c	2010-05-10 19:48:44.000000000 +0200
+@@ -7,6 +7,8 @@
+ #include <stdio.h>
+ #include <termios.h>
+ #include <stdarg.h>
++#include <stdlib.h>
++#include <unistd.h>
+ 
+ #include "common.h"
+ 
+@@ -21,6 +23,7 @@ void errorf (char *fmt, ...)
+ 	
+ 	va_start (args, fmt);
+ 	vfprintf (stderr, fmt, args);
++	va_end (args);
+ 	exit (1);
+ }
+ 
+@@ -32,6 +35,7 @@ int fdprintf (int fd, char *fmt, ...)
+ 
+ 	va_start (args, fmt);
+ 	r = vsprintf(str, fmt, args);
++	va_end (args);
+ 	write (fd, str, r);
+ 
+ 	return (r);
+--- ttysnoop-0.12d/logwtmp.c.debian	2011-11-25 12:32:05.000000000 +0100
++++ ttysnoop-0.12d/logwtmp.c	2011-11-25 12:39:49.000000000 +0100
+@@ -33,6 +33,7 @@
+ 
+ #include <string.h>
+ #include <unistd.h>
++#include <time.h>
+ #include <utmp.h>
+ #include <fcntl.h>
+ #include <sys/stat.h>
+@@ -55,7 +56,8 @@ logwtmp(const char *line, const char *na
+                strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+                strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+                strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+-               time(&ut.ut_time);
++               ut.ut_time = time(NULL);
++
+                if (write(fd, &ut, sizeof(struct utmp)) != sizeof(struct utmp))
+                        ftruncate(fd, buf.st_size);
+        }
+--- ttysnoop-0.12d/ttysnoop.c.debian	1998-04-08 20:29:28.000000000 +0200
++++ ttysnoop-0.12d/ttysnoop.c	2010-05-10 20:21:42.000000000 +0200
+@@ -94,4 +94,5 @@ int main (int argc, char *argv[])
+ 	}
+ 	
+ 	printf ("\r\nBack at local tty.\r\n");
++	return 0;
+ }
+--- ttysnoop-0.12d/ttysnoops.c.debian	2010-05-10 17:17:53.000000000 +0200
++++ ttysnoop-0.12d/ttysnoops.c	2010-05-10 20:43:16.000000000 +0200
+@@ -24,6 +24,7 @@
+ #include <sys/ioctl.h>
+ #include <sys/socket.h>
+ #include <sys/syslog.h>
++#include <sys/wait.h>
+ #include <sys/un.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -33,6 +34,7 @@
+ #include <signal.h>
+ #include <fcntl.h>
+ #include <termios.h>
++#include <time.h>
+ #include <grp.h>
+ #include <pwd.h>
+ #include <utmp.h>
+@@ -147,6 +149,7 @@ int process_snooptab (void)
+ 			
+ 	fclose (f);
+ 	errorf ("no entry for %s in %s\n", tty, SNOOPTAB);
++	return (0); /* Is still ignored. */
+ }
+ 
+ /* find & open a pty to be used by the pty-master */
+@@ -343,7 +346,8 @@ int inputs (char *buff, int max, FILE *f
+ 					break;
+ 
+ 				default :
+-					if (b >= 32 && b < 127)
++					if ((b >= 32) && (b < 127))
++					{
+ 						if ((l = strlen(buff)) < max)
+ 						{
+ 							buff[l] = b;
+@@ -351,6 +355,7 @@ int inputs (char *buff, int max, FILE *f
+ 						}
+ 						else
+ 							beep ();
++					}
+ 			}
+ 	}
+ 
+@@ -366,7 +371,7 @@ void authenticate (int fd)
+ #endif
+ 
+ 	int ret = 0;
+-	char buff[PASS_SIZE], *pwbuff;
++	char buff[PASS_SIZE];
+ 
+ 	if ((authpid = fork()) == 0)	/* authentication child */
+ 	{
+@@ -484,7 +489,8 @@ int main (int argc, char *argv[])
+ 	struct sockaddr_un serv_addr, cli_addr;
+ 	fd_set readset;
+ 	struct utmp utmp;
+-       int ptyfd, servfd, len = sizeof(cli_addr), n, sel, susp = 0;
++	int ptyfd, servfd = -1, n, sel, susp = 0;
++	socklen_t len = sizeof(cli_addr);
+ 
+ 	if (!isatty(STDIN_FILENO))
+ 		errorf ("stdin is not a tty\n");
+@@ -615,7 +621,9 @@ int main (int argc, char *argv[])
+ 			}
+ 			else if ((*buff == SUSP_CHAR) && (n == 1) && use_socket)
+ 			{
+-				if (susp = !susp)
++				susp = ~susp;	/* Complement state now, instead of inside the if-clause.
++						 * This reads better. */
++				if (susp)
+ 					fdprintf (snoopfd, "\r\nSnoop suspended. %s (ASCII %d) to resume.\r\n",
+ 						SC_STRING, SUSP_CHAR);
+ 				else

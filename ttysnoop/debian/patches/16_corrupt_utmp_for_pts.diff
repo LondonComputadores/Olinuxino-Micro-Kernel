@@ -1,0 +1,36 @@
+Description: Use distinct UTMP identity.
+ The original code implemented an incorrect
+ abbreviation of pseudo terminal names in the
+ PTY name space. This corrupts the UTMP_FILE
+ of GNU/Linux systems.
+Author: Mats Erik Andersson <debian@gisladisker.se>
+Bug-Debian: http://bugs.debian.org/648548
+Forwarded: no
+Last-Update: 11-11-17
+
+diff -Naurp ttysnoop-0.12d.debian/ttysnoops.c ttysnoop-0.12d/ttysnoops.c
+--- ttysnoop-0.12d.debian/ttysnoops.c
++++ ttysnoop-0.12d/ttysnoops.c
+@@ -246,8 +246,8 @@ void abbreviate_ptyname (char *name, cha
+ 	*shortname = *shortername = name + 5;
+ 	if (!strncmp(name, "/dev/tty", 8))
+ 		*shortername = name + 8;
+-	else if (!strncmp(name, "/dev/pts/", 9))
+-		*shortername = name + 9;
++	else if (!strncmp(name, "/dev/pts", 8))
++		*shortername = name + 8;
+ }
+ 
+ /* fork off the pty-client and redirect its stdin/out/err to the pty */
+@@ -576,7 +576,10 @@ int main (int argc, char *argv[])
+ 		if ((servfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+ 			errorf ("Cannot create server socket.\n");
+ 		
+-		sprintf (sockname, "%s/%s", SPOOLDIR, shorter_ptynam);
++		/* Ignore an initial slash in PTS identity. */
++		sprintf (sockname, "%s/%s", SPOOLDIR,
++			(*shorter_ptynam == '/') ? shorter_ptynam + 1
++					: shorter_ptynam);
+ 		unlink (sockname);
+ 		memset(&serv_addr, '\0', sizeof(serv_addr));
+ 		serv_addr.sun_family = AF_UNIX;

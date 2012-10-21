@@ -1,0 +1,152 @@
+ttysnoop (0.12d-5) unstable; urgency=low
+
+  * Standards 3.9.2, compatibility 8.
+    + debian/control: Build depends on "debhelper" (>= 8).
+    + debian/compat: Updated.
+  * debian/rules: Use "dpkg-buildflags" for CFLAGS and LDFLAGS.
+  * Simplify time computation in compatibility mode:
+    + debian/patches/10_compiler_warnings.diff: Simplified.
+  * Adaption to GNU/kFreeBSD (Closes: #648549):
+    + debian/patches/02_unix98_pty.diff: Updated file.
+    + Refresh the patches 03_*, 10_*, and 14_*.
+    + debian/NEWS: Mention this step.
+  * Pedantic check of UNIX socket name lengths.
+    + debian/patches/15_socket_name_length.diff: New file.
+  * Incorrect registration of UTMP items (Closes: #648548)
+    + debian/patches/16_corrupt_utmp_for_pts.diff: New file.
+  * Code review for portability:
+    + debian/patches/17_portability_and_qa.diff: New file.
+  * [lintian] Overriding with explicit reasons:
+    + Mis-spelled license name.
+    + No home page exists.
+    + debian/ttysnoop.lintian-overrides: New file.
+
+ -- Mats Erik Andersson <mats.andersson@gisladisker.se>  Fri, 25 Nov 2011 20:52:07 +0100
+
+ttysnoop (0.12d-4) unstable; urgency=low
+
+  * New maintainer.
+  * Migration to format "3.0 (quilt)".
+  * Standards 3.8.4, compatibility 7.
+    + Build depends on debhelper (>= 7.0.50~).
+    + Binary dependence enhanced with ${misc:Depends}.
+    + Minor changes in 'debian/' caused by the upgrade.
+  * debian/rules: Rewritten using support from 'dh'.
+  * debian/control: Added stanzas Vcs-Svn and Vcs-Browser.
+  * debian/NEWS: New file.
+  * Separation of old patching applied to original source tree:
+    + 01_from_package_0_12d_1.diff: New file.
+    + 02_unix98_pty.diff: New file.
+    + 03_address_length.diff: New file.
+  * Some cleaning of upstream source:
+    + 10_compiler_warnings.diff: New file.
+  * Functionality repair and error message interaction:
+    + debian/patches/12_tailor_makefile.diff: New file.
+    + debian/patches/13_predictable_client.diff: New file.
+    + debian/patches/14_predictable_server.diff: New file.
+
+ -- Mats Erik Andersson <mats.andersson@gisladisker.se>  Mon, 21 Jun 2010 20:01:34 +0200
+
+ttysnoop (0.12d-3) unstable; urgency=low
+
+  * Patched ttysnoops.c to initialize 'len' var for accept() call.
+    Thanks Ken-ichirou MATSUZAWA for the patch.
+  * Bumped Standards-Version to 3.7.2.2, no change.
+
+ -- Alberto Gonzalez Iniesta <agi@inittab.org>  Thu, 22 Feb 2007 23:10:18 +0100
+
+ttysnoop (0.12d-2) unstable; urgency=low
+
+  * Applied patch to fix Unix98 PTYs. (Closes: #87371)
+    Big thanks to Peter Samuelson for the patch!
+  
+ -- Alberto Gonzalez Iniesta <agi@inittab.org>  Thu, 10 Nov 2005 18:43:26 +0100
+
+ttysnoop (0.12d-1) unstable; urgency=low
+
+  * New upstream release
+  * Changed maintainer email address
+  * Rewrote debian/rules and removed Build-Depends on debmake
+
+ -- Alberto Gonzalez Iniesta <agi@inittab.org>  Fri, 25 Mar 2005 11:05:13 +0100
+
+ttysnoop (0.12c-8) unstable; urgency=low
+
+  * New maintainer. (Closes :#210892)
+  * Bumped Standards-Version to 3.6.1.0, no change.
+
+ -- Alberto Gonzalez Iniesta <agi@agi.as>  Sat, 20 Sep 2003 18:45:31 +0200
+
+ttysnoop (0.12c-7.2) unstable; urgency=low
+
+  * NMU, at request of previous NMU'er.
+  * Really add Build-Depends on debmake this time.  Closes: #190609.
+
+ -- Daniel Schepler <schepler@debian.org>  Sun, 24 Aug 2003 17:24:31 -0700
+
+ttysnoop (0.12c-7.1) unstable; urgency=low
+
+  * Non-Mainter-Upload
+    This package was getting quite rusty and bugs were easy to solve
+    anyhow so I'm going to spend a little time with it now that
+    the 0-day NMU is ok...
+    - Increased buffer for passwords to PASS_SIZE (set to 256 so
+    that's 255 chars for the password) (Closes: #122800, #122802)
+    - Added debmake to Build-Depends (Closes: #190609)
+    - Added GPL note to debian/copyright (Closes: #133506) 
+    - Added more documentation on README.Debian which specifically 
+    says that ttysnoop must run as root if going through inetd
+    (Closes: #97719)
+    - Fixed some lintians errors/warnings including the old emacs
+    note in debian/changelog and adding the '-isp' option to
+    dpkg-gencontrol to add Section and Priority information to the
+    control file.
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Wed, 20 Aug 2003 03:34:39 +0200
+
+ttysnoop (0.12c-7) unstable; urgency=low
+
+  * recompiled with glibc2.1
+  * updated standards version
+
+ -- Paul Haggart <phaggart@debian.org>  Fri, 12 Nov 1999 09:38:32 -0500
+
+ttysnoop (0.12c-6) unstable; urgency=low
+
+  * fixed #11642: wtmp written properly (thanks again to wakko)
+
+ -- Paul Haggart <phaggart@debian.org>  Fri, 19 Sep 1997 08:01:57 -0400
+
+ttysnoop (0.12c-5) unstable; urgency=low
+
+  * fixed to work with libc6 utmp (bug #12531, fixed by my favourite cartoon 
+    eating machine)
+
+ -- Paul Haggart <phaggart@debian.org>  Fri, 12 Sep 1997 07:59:53 -0400
+
+ttysnoop (0.12c-4) unstable; urgency=low
+
+  * recompiled with libc6
+
+ -- Paul Haggart <phaggart@debian.org>  Mon, 26 May 1997 10:57:38 -0400
+
+ttysnoop (0.12c-3) unstable; urgency=low
+
+  * shadow password support added
+
+ -- Paul Haggart <phaggart@debian.org>  Sun, 13 Apr 1997 21:10:02 -0400
+
+ttysnoop (0.12c-2) unstable; urgency=low
+
+  * added a few hints to /etc/snooptab on how to setup for getty, mgetty
+    and in.telnetd
+  * removed default behaviour of snooping on in.telnetd
+
+ -- Paul Haggart <phaggart@debian.org>  Fri, 11 Apr 1997 08:02:53 -0400
+
+ttysnoop (0.12c-1) unstable; urgency=low
+
+  * initial release
+
+ -- Paul Haggart <phaggart@debian.org>  Mon, 31 Mar 1997 01:10:54 -0500
+

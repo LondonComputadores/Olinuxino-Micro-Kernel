@@ -1,0 +1,15 @@
+ttysnoop (0.12d-5) unstable; urgency=low
+
+  GNU/kFreeBSD now has working code, after a slight
+  alteration to the old patch for UNIX98 PTY support.
+
+ -- Mats Erik Andersson <mats.andersson@gisladisker.se>  Thu, 17 Nov 2011 11:58:02 +0100
+
+ttysnoop (0.12d-4) unstable; urgency=low
+
+  Both executables "ttysnoops" and "ttysnoop" have been modified
+  to require enhanced user privileges in order to be usable!
+  Snooping on others should not be possible by the common man.
+
+ -- Mats Erik Andersson <mats.andersson@gisladisker.se>  Mon, 21 Jun 2010 20:00:37 +0200
+

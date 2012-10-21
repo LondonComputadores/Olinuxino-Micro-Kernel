@@ -1,0 +1,15 @@
+Description: Properly initialize address length in accept socket.
+Author: Ken-ichirou MATSUZAWA
+Forwarded: no
+Last-Update: 2007-02-22
+--- ttysnoop-0.12d/ttysnoops.c
++++ ttysnoop-0.12d/ttysnoops.c
+@@ -484,7 +484,7 @@
+ 	struct sockaddr_un serv_addr, cli_addr;
+ 	fd_set readset;
+ 	struct utmp utmp;
+-	int ptyfd, servfd, len, n, sel, susp = 0;
++       int ptyfd, servfd, len = sizeof(cli_addr), n, sel, susp = 0;
+ 
+ 	if (!isatty(STDIN_FILENO))
+ 		errorf ("stdin is not a tty\n");

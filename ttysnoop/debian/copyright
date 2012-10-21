@@ -1,0 +1,35 @@
+This package was debianized by Paul Haggart <phaggart@debian.org> on
+Mon, 31 Mar 1997 01:10:54 -0500.
+
+It was downloaded from ftp.cc.gatech.edu
+
+Copyright 1994 - 1998 Carl Declerck
+
+This software is distributed under the GNU GPL license, you can find
+a copy of it in your Debian system under /usr/share/common-licenses/
+
+There are no docs saying it explicitly, however the Debian maintainer
+-did- get an email back from the author clarifying the copyright.
+
+Date: Sun, 6 Apr 1997 11:58:59 +0100 (GMT+0100)
+From: Carl Declerck <carl@miskatonic.inbe.net>
+To: Paul Haggart <phaggart@cybertap.com>
+Subject: Re: ttysnoop copyright definition
+
+On Mon, 31 Mar 1997, Paul Haggart wrote:
+
+>   I am packaging up your 'ttysnoop' program for use in debian linux systems. 
+> Would it be possible for me to get a PGP signed message from you stating the
+> package's copyright?  I couldn't find anything about the current status of
+> the program -anywhere- in the source tree.
+
+The copying & usage policy for ttysnoop is the standard GNU Public License.
+I know this is not in the current distribution archive (it will be in future
+ones), but there is an (old) entry for ttysnoop in the Linux Software Map
+stating this.
+
+Sorry, not PGP signed since I don't have PGP installed on this machine.
+
+Cheers, Carl.
+
+

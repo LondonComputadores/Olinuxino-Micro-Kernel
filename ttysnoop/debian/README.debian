@@ -1,0 +1,54 @@
+ttysnoop for debian
+-------------------
+
+First of all, for the impatient, there are a few setup hints in /etc/snooptab.. 
+check'em out.
+
+You can setup ttysnoop in a number of ways including:
+
+A virtual console
+-----------------
+
+Just edit /etc/inittab in your favorite text editor and modify any
+terminal line (X=number of the vt) from
+X:23:respawn:/sbin/getty 38400 ttyX
+to
+X:23:respawn:/sbin/getty 38400 ttyX -l /usr/sbin/ttysnoops
+
+Then have init re-read it running 'init q'
+
+A remote server (such as telnet)
+--------------------------------
+
+Modify your /etc/inetd.conf configuration file from
+telnet stream tcp nowait telnetd.telnetd /usr/sbin/tcpd /usr/sbin/in.telnetd
+to
+telnet stream tcp nowait root.telnetd /usr/sbin/tcpd /usr/sbin/in.telnetd -L /usr/sbin/ttysnoops
+
+And reload the 'inetd' server with '/etc/init.d/inetd reload'
+
+Notice that ttysnoops needs to run as 'root' or otherwise it won't work. Since
+it has not been thoroughly audited is not recommended to setup a network
+service using it (and giving it full priviledges) since it will probably
+not be a good idea.
+
+When users connect
+------------------
+
+To look at what users are doing you should use the program 'ttysnoop'.
+You will notice a number of files in the /var/spool/ttysnoop/ directory, like:
+ttyp0=
+ttyp1=
+
+These file are pseudo terminals you can hook ttysnoop to, just do 
+'ttysnoop ttypX' enter the root password on request and you will
+be able to see what a user is typing and even write on his own terminal.
+
+NOTE: For obvious reasons the Debian package will not do any changes to your
+system's configuration by itself.
+
+-------------------
+Paul Haggart
+phaggart@debian.org
+Javier Fernandez-Sanguino
+jfs@debian.org

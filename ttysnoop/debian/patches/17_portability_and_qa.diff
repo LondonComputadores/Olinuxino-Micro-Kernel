@@ -1,0 +1,135 @@
+Description: Improve portability to achieve better QA
+ Relax as far as possible any coding that disturbs
+ building in other unices. Target GNU/OpenSolaris as
+ a first step.
+ .
+ Legacy coding for UTMP remains at the time being.
+ .
+ It is hoped that the measures undertaken is this
+ patch set will improve the quality of this software,
+ by successively identifying the corner cases.
+Author: Mats Erik Andersson <debian@gisladisker.se>
+Forwarded: no
+Last-Update: 11-11-25
+
+diff -Naurp ttysnoop-0.12d.debian/logwtmp.c ttysnoop-0.12d/logwtmp.c
+--- ttysnoop-0.12d.debian/logwtmp.c
++++ ttysnoop-0.12d/logwtmp.c
+@@ -47,15 +47,18 @@ logwtmp(const char *line, const char *na
+        struct stat buf;
+        int fd;
+ 
+-       if ((fd = open(_PATH_WTMP, O_WRONLY|O_APPEND, 0)) < 0)
++       if ((fd = open(WTMP_FILE, O_WRONLY|O_APPEND, 0)) < 0)
+                return;
+        if (fstat(fd, &buf) == 0) {
++               memset(&ut, 0, sizeof(ut));
+                ut.ut_pid = getpid();
+                ut.ut_type = (name[0] != '\0')? USER_PROCESS : DEAD_PROCESS;
+                strncpy(ut.ut_id, "", 2);
+                strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+                strncpy(ut.ut_name, name, sizeof(ut.ut_name));
++#if __GLIBC__
+                strncpy(ut.ut_host, host, sizeof(ut.ut_host));
++#endif
+                ut.ut_time = time(NULL);
+ 
+                if (write(fd, &ut, sizeof(struct utmp)) != sizeof(struct utmp))
+diff -Naurp ttysnoop-0.12d.debian/Makefile ttysnoop-0.12d/Makefile
+--- ttysnoop-0.12d.debian/Makefile
++++ ttysnoop-0.12d/Makefile
+@@ -4,6 +4,11 @@
+ 
+ CC	= gcc
+ 
++OS = $(shell uname -s)
++
++PREFIX ?= /usr/sbin
++MANPREFIX ?= /usr/share/man
++
+ # Without shadow support
+ 
+ #CCOPTS	= -O2
+@@ -14,12 +19,21 @@ CC	= gcc
+ CCOPTS	= -O2 -DSHADOW_PWD $(CFLAGS)
+ LIBS	= -lcrypt
+ 
+-SERVEROBJS	= ttysnoops.o common.o logwtmp.o
++SERVEROBJS	= ttysnoops.o common.o
+ CLIENTOBJS	= ttysnoop.o common.o
+ SERVERSRCS	= ttysnoops.c
+ CLIENTSRCS	= ttysnoop.c
+ INCLUDES	= config.h common.h
+ 
++ifeq "$(OS)" "SunOS"
++	# At least for GNU/OpenSolaris
++	LIBS += -lsocket
++	SERVEROBJS += logwtmp.o
++else
++	# Hoping for Glibc
++	LIBS += -lutil
++endif
++
+ all:		ttysnoops ttysnoop
+ 
+ ttysnoops:	$(SERVEROBJS)
+@@ -44,8 +58,7 @@ clean:
+ 		rm -f *.o core ttysnoop ttysnoops
+ 
+ install:
+-		install -s ttysnoop /sbin
+-		install -s ttysnoops /sbin
+-		install -m 644 ttysnoop.8 /usr/man/man8/
++		install -s ttysnoop $(DESTDIR)$(PREFIX)/
++		install -s ttysnoops $(DESTDIR)$(PREFIX)/
++		install -m 644 ttysnoop.8 $(DESTDIR)$(MANPREFIX)/man8/
+ 		@echo ... copy snooptab.dist to /etc/snooptab and edit it ...
+- 
+diff -Naurp ttysnoop-0.12d.debian/ttysnoops.c ttysnoop-0.12d/ttysnoops.c
+--- ttysnoop-0.12d.debian/ttysnoops.c
++++ ttysnoop-0.12d/ttysnoops.c
+@@ -18,14 +18,18 @@
+ 	v0.12d  8-4-98 Carl Declerck	- updated #includes a bit
+ */
+ 
+-#define _XOPEN_SOURCE 600 /* ptsname(), posix_openpt() */
+-#define _BSD_SOURCE   /* SUN_LEN from <sys/un.h> */
++#ifndef __sun__
++#  define _XOPEN_SOURCE 600 /* ptsname(), posix_openpt() */
++#  define _BSD_SOURCE   /* SUN_LEN from <sys/un.h> */
++#else /* __sun__ */
++#  define __EXTENSIONS__
++#endif
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <sys/ioctl.h>
+ #include <sys/socket.h>
+-#include <sys/syslog.h>
++#include <syslog.h>
+ #include <sys/wait.h>
+ #include <sys/un.h>
+ #include <stdio.h>
+@@ -48,7 +52,9 @@
+ #endif
+ #include "config.h"
+ #include "common.h"
+-#include "logwtmp.h"
++#ifndef __GLIBC__
++#  include "logwtmp.h"
++#endif
+ 
+ #define BUFF_SIZE	256
+ #define PASS_SIZE	256
+@@ -540,10 +546,9 @@ int main (int argc, char *argv[])
+ 
+ 		if (proctype == LOGIN_PROCESS)
+ 		{
++			memset (&utmp, 0, sizeof(utmp));
+ 			strncopy (utmp.ut_line, short_ptynam);
+ 			strncopy (utmp.ut_id, shorter_ptynam);
+-			*utmp.ut_host = 0;
+-			utmp.ut_addr = 0;
+ 			strncopy (utmp.ut_user, "LOGIN");
+ 			utmp.ut_pid = getpid();
+ 			utmp.ut_type = proctype;

@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+CFLAGS ?= -Wall $(shell dpkg-buildflags --get CFLAGS)
+LDFLAGS ?= $(shell dpkg-buildflags --get LDFLAGS)
+
+export CFLAGS LDFLAGS
+
+DESTDIR = debian/ttysnoop
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	mkdir -p $(DESTDIR)/usr/sbin
+	install ttysnoop $(DESTDIR)/usr/sbin/
+	install ttysnoops $(DESTDIR)/usr/sbin/
+	mkdir -p $(DESTDIR)/etc
+	install -m 644 snooptab.dist $(DESTDIR)/etc/snooptab
+
+override_dh_install:
+	dh_installchangelogs README
+	dh $@

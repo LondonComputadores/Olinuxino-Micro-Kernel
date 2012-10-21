@@ -1,0 +1,123 @@
+Description: Predictable behaviour of server.
+ Deny executaion without sufficient priviliges.
+ .
+ Closing of sockets as the client user is leaving. This sets an
+ otherwise blocking connection free again, ready to receive new
+ login attempts.
+ .
+ Removal of the extinct UNIX socket from '/var/spool/ttysnoop/'
+ .
+ Minor health checks.
+Author: Mats Erik Andersson <debian@gisladisker.se>
+Forwarded: no
+Last-Update: 2010-06-21
+--- ttysnoop-0.12d.debian/ttysnoops.c
++++ ttysnoop-0.12d/ttysnoops.c
+@@ -422,6 +422,9 @@ void cleanup_utmp (char ptynam[])
+ {
+ 	struct utmp utmp;
+ 	
++	if (ptynam == NULL)
++		return;
++
+ 	setutent ();
+ 	strcpy (utmp.ut_line, ptynam);
+ 	utmp = *(getutline(&utmp));
+@@ -439,6 +442,16 @@ void closedown (void)
+ 	if (servpid == getpid())	/* only server must clear utmp entry */
+ 		cleanup_utmp (short_ptynam);
+ 	stty_orig ();
++	if (snoopfd >= 0) {
++		tcflush (snoopfd, TCIOFLUSH);
++		close (snoopfd);
++	}
++	if (authfd >= 0) {
++		tcflush (authfd, TCIOFLUSH);
++		close (authfd);
++	}
++	if ( *sockname && (servpid == getpid()) )
++		unlink (sockname);
+ }
+ 
+ /* signal handlers */
+@@ -452,6 +465,7 @@ void sighup (int sig)
+ void sigpipe (int sig)
+ {
+ 	sig = sig;
++	close (snoopfd);
+ 	snoopfd = -1;
+ 	
+ 	signal (SIGPIPE, sigpipe);
+@@ -464,7 +478,7 @@ void sigchld (int sig)
+ 
+ 	if ((pid = wait(&status)) == authpid)
+ 	{
+-		if (((status >> 8) & 0xff) == 1)
++		if (WEXITSTATUS(status) == 1)
+ 		{
+ 			snoopfd = authfd;
+ 			fdmax = max(fdmax, snoopfd);
+@@ -492,6 +506,9 @@ int main (int argc, char *argv[])
+ 	int ptyfd, servfd = -1, n, sel, susp = 0;
+ 	socklen_t len = sizeof(cli_addr);
+ 
++	if ( geteuid() )
++		errorf("Insufficient privileges for execution.\n");
++
+ 	if (!isatty(STDIN_FILENO))
+ 		errorf ("stdin is not a tty\n");
+ 
+@@ -505,13 +522,16 @@ int main (int argc, char *argv[])
+ 	stty_initstore ();
+ 	process_snooptab ();
+ 	openlog ("ttysnoops", LOG_PID, LOG_AUTH);
++
+ 	atexit (closedown);
+ 	
+ 	/* fork off the client and load the new image */
+ 	
+ 	if ((pgmpid = fork_pty(&ptyfd, ptynam)) < 0)
+ 		errorf ("cannot fork\n");
++
+ 	abbreviate_ptyname(ptynam, &short_ptynam, &shorter_ptynam);
++
+ 	if (pgmpid == 0)    /* child */
+ 	{
+ 		/* should we update utmp to reflect the change to ttypX ? */
+@@ -552,10 +572,11 @@ int main (int argc, char *argv[])
+ 		/* create the main server socket */
+ 		
+ 		if ((servfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+-			errorf ("can't create server socket\n");
++			errorf ("Cannot create server socket.\n");
+ 		
+ 		sprintf (sockname, "%s/%s", SPOOLDIR, shorter_ptynam);
+ 		unlink (sockname);
++		memset(&serv_addr, '\0', sizeof(serv_addr));
+ 		serv_addr.sun_family = AF_UNIX;
+ 		strncopy (serv_addr.sun_path, sockname);
+ 		if (bind(servfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
+@@ -572,6 +593,9 @@ int main (int argc, char *argv[])
+ 	{
+ 		/* open snoop-device and put it into raw mode */
+ 		
++		if (snoopdev == NULL)
++			errorf ("No valid snoop device could be established.\n");
++
+ 		if ((snoopfd = open(snoopdev, O_RDWR)) < 0)
+ 			errorf ("can't open snoop device %s\n", snoopdev);
+ 		
+@@ -597,11 +621,11 @@ int main (int argc, char *argv[])
+ 			else if (use_socket && authfd == -1)
+ 				FD_SET (servfd, &readset);
+ 
+-			sel = select(fdmax + 1, &readset, NULL, NULL, NULL);
++			sel = select (fdmax + 1, &readset, NULL, NULL, NULL);
+ 		}
+ 		while (sel == -1 && errno == EINTR);
+ 		if (sel == -1 && errno != EINTR)
+-			errorf ("select failed. errno = %d\n", errno);
++			errorf ("select failed, errno = %d: %s\n", errno, strerror(errno));
+ 		
+ 		if (FD_ISSET(STDIN_FILENO, &readset))
+ 		{
